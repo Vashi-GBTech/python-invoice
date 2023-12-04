@@ -1,0 +1,8 @@
+
+r"CGST\s9\.000%\s(\d{1,3}(?:,\d{3})*(?:\.\d{2})?).+?(?=\s|$)"
+"""The modification .+?(?=\s|$) in the pattern means:
+.+? will match any character (except for a newline), one or more times, but as few times as possible (non-greedy).
+(?=\s|$) is a positive lookahead assertion that checks for either a whitespace character \
+ s or the end of the line $ without including it in the match.
+""" 
+

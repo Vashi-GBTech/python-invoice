@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Extracted Text Display</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="box">
+            <h2>Due Date</h2>
+            <p>{{ extracted_text['Due Date'] }}</p>
+        </div>
+        <div class="box">
+            <h2>GST Number</h2>
+            <p>{{ extracted_text['GST Number'] }}</p>
+        </div>
+        <div class="box">
+            <h2>gstin</h2>
+            <p>{{ extracted_text['gstin'] }}</p>
+        </div>
+        <div class="box">
+            <h2>Item Taxable Value</h2>
+            <p>{{ extracted_text['Item Taxable Value'] }}</p>
+        </div>
+        <div class="box">
+            <h2>sgst_Tax</h2>
+            <p>{{ extracted_text['sgst_Tax'] }}</p>
+        </div>
+        <div class="box">
+            <h2>cgst_Tax</h2>
+            <p>{{ extracted_text['cgst_Tax'] }}</p>
+        </div>
+         <div class="box">
+            <h2>grand_total</h2>
+            <p>{{ extracted_text['grand_total'] }}</p>
+        </div> 
+        <div class="box">
+            <h2>total_tax_amount</h2>
+            <p>{{ extracted_text['total_tax_amount'] }}</p>
+        </div>
+        <div class="box">
+            <h2>Mobile_number</h2>
+            <p>{{ extracted_text['Mobile_number'] }}</p>
+        </div>
+    </div>
+</body>
+</html>
