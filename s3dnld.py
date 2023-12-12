@@ -1,100 +1,129 @@
- 
-
-text="""TAX INVOICE [1 Original for ecepient —_] Triplicate for supplier
-1 Duplicate for transporter C1] Extra copy
-Invoice No. : Date :
-BULZER TECH 7468/23-24 2411112023
-Plot No:14/A,Survey No.157/4,Ground, Ist, 2nd & 3rd Floor, Purchase Order No. : Date :
-Wahab Nagar Co-Operative Housing Society Limited, Near
-Diamond Point Circle, Thokatta Vill Secunderabad 500009 Payment tenn Dustales
-STATE :36 - TELANGANA ERENT DATE i
-PHONE NO.:040-27900000,29310000 24/11/2023
-GSTIN:36AAOPL8099C1Z8 PAN: AAOPL8099C Agent's Ref. : DC No. :   
-TAN: HYDP02035F cTc
-BUYER'S NAME AND ADDRESS:
-C PROMPT SOLUTIONS PRIVATE LIMITED
-BALDWA EDIFICE 2-4-438,441 IRN
-3RD FLOOR RAMGOPALPET ROAD 23082986598c7dc210b12dfd78c3a        
-Sevunderabsd..500003 £8849d0073776609481 0564438658
-124a0a6
-STATE : 36 - TELANGANA “
-CONTACT PERSON : ADITYA
-PHONE NO.: 97004 87282
-GSTIN :36AAKCC1867C1ZQ PAN: AAKCC1867C
-Remarks
-sl. inti HSN | aty Rate cest | scst Iest Taxable
-Product Description Code | (Nos) | _Rs. Tax Tax Tax Value       
-1 | DELLOPTIPLEX 7010 MT is 13500 8/1TB+256 84714900] 39 38,983.05 13683051) 136830.51 1,820,338 99
-SSD DOS 3 YRS
-DY.5VX3:69MSVX3;7WLBVXG.H TMEVXS;77MBVX3.9 7MSVX3,68MBVX (9.00%) | (@.00%)
-19MSVX3:HEMSVXG, 37M5VX3:P1.5VX3,C8MSVXG, ML SVKS;DBMSVX        
-5, FOMSVX3,57 MSVX3: 49MSVXS:G8MSVK3,F7MSVX3,5WLSVKS-47MSVX     
-3 HOMBVX3,DTMGVXG,7MSVXS,CEMOVXS: 20M SVKS.48MSVIG,6M5V
-X3,79MBVX3:D66 5VX3J8M5VX3,67M SVX, 86M5VXG,F6MSVX3;10MSV       
-X3,B6MSUKS,27 MSVIG,J6MSVIG,72MBVX3
-2 | RAM 8GB DDR4 84733099] 15 127119) 171610) 1716.10 19,067.79 
-(9.00%) | (9.00%)
-FREIGHT 9,750.00)
-TOTAL TAXABLE AMOUNT 1,549,156.78)
-CGST 9.000% 139,424.11
-SGST 9.000% 139,424.11
-TOTAL QTY: 54 GRAND TOTAL: 1,828,005.00
-[AMOUNT IN WORDS: RUPEES EIGHTEEN LAKHS TWENTY-EIGHT THOUSAND FIVE ONLY.
-TERM AND CONDITIONS : BANK DETAIL
-1. NO WARRANTY FOR BURNT/PHYSICAL DAMAGE. Bank —: INDUSIND BANK 
-2. Goods once sold will not be taken back or exchanged. Branch : $.P.ROAD,BEGUMPET
-3. All disputes are subjected to HYDERABAD Jurisdiction Alc No. :650014134745
-4, Incase of default in payment BULZER TECH will have all the rights to repossess the goods. IFSC -INDBO000004
-8. In case cheque is dishonoured RS.500/- will be charged and 24% Interest will be charged.
-6. Responsibility of warranty lies with the manufacturer only. ‘Transport Mode
-7. Customer Declaration: | have accepted the above mentioned conditions and taken delivery Carrier Name
-only after verifying the above. Waybill No
+import os
+import glob
+import json
+import random
+from pathlib import Path
+from difflib import SequenceMatcher
+import cv2
+import pandas as pd
+import numpy as np
+from PIL import Image
+from tqdm import tqdm
+from IPython.display import display
+import matplotlib
+from matplotlib import pyplot, patches
 
 
 
-BULZER -040-27900000
-DELL -18004250088
-GODREJ -18002095511
-SONY = -18001037799
-HP +18002587170"""
+def read_bbox_and_words(path: Path):
+    bbox_and_words_list = []
+    with open(path, 'r', errors='ignore') as f:
+        for line in f.read().splitlines():
+            if len(line) == 0:
+                continue
+            split_lines = line.split(",")
+            bbox = np.array(split_lines[0:8], dtype=np.int32)
+            text = ",".join(split_lines[8:])
+            bbox_and_words_list.append([path.stem, bbox, text])
+    dataframe = pd.DataFrame(bbox_and_words_list,
+                             columns=['filename', 'x0', 'y0', 'x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'line'],
+                             dtype=np.int16)
+    dataframe = dataframe.drop(columns=['x1', 'y1', 'x3', 'y3'])
+    return dataframe
 
 
-# import re
-# pattern1= r'\bGRAND TOTAL:.*\d(?:\.\d+)?\b'
-# pattern2 = r'^Total.*?\d{1,3}(?:,\d{3})*\.\d{2}$'
-# pattern=pattern1+pattern2
-# matches = re.findall(pattern, text)
-# if matches:
-#     for match in matches:
-#         print(match)
-# else:
-#     print("No match found.") 
- 
- 
+def assign_line_label(line: str, entities: pd.DataFrame):
+    line_set = line.replace(",", "").strip().split()
+    for i, column in enumerate(entities):
+        entity_values = entities.iloc[0, i].replace(",", "").strip()
+        entity_set = entity_values.split()
+        matches_count = 0
+        for l in line_set:
+            if any(SequenceMatcher(a=l, b=b).ratio() > 0.8 for b in entity_set):
+                matches_count += 1
+            if (column.upper() == 'ADDRESS' and (matches_count / len(line_set)) >= 0.5) or \
+               (column.upper() != 'ADDRESS' and (matches_count == len(line_set))) or \
+               matches_count == len(entity_set):
+                return column.upper()
+    return "O"
 
+def assign_labels(words, entities):
+    max_area = {"TOTAL": (0, -1), "DATE": (0, -1)}
+    already_labeled = {"TOTAL": False,
+                       "DATE": False,
+                       "ADDRESS": False,
+                       "COMPANY": False,
+                       "O": False
+    } 
+    labels = []
+    for i, line in enumerate(words['line']):
+        label = assign_line_label(line, entities)  
+        already_labeled[label] = True
+        if (label == "ADDRESS" and already_labeled["TOTAL"]) or \
+           (label == "COMPANY" and (already_labeled["DATE"] or already_labeled["TOTAL"])):
+            label = "O"
 
-import re
+        # Assign to the largest bounding box
+        if label in ["TOTAL", "DATE"]:
+            x0_loc = words.columns.get_loc("x0")
+            bbox = words.iloc[i, x0_loc:x0_loc+4].to_list()
+            area = (bbox[2] - bbox[0]) + (bbox[3] - bbox[1]) 
+            if max_area[label][0] < area:
+                max_area[label] = (area, i) 
+            label = "O" 
+        labels.append(label) 
+    labels[max_area["DATE"][1]] = "DATE"
+    labels[max_area["TOTAL"][1]] = "TOTAL" 
+    words["label"] = labels
+    return words
 
-text = "Invoice No. : Date : BULZER TECH 7468/23-24 2411112023"
+def dataset_creator(folder: Path):
+  bbox_folder = folder/'box'
+  entities_folder = folder/'entities'
+  img_folder = folder/'img'
+  entities_files = entities_folder.glob("*.txt")
+  bbox_files =bbox_folder.glob("*.txt")
+  img_files = img_folder.glob("*.jpg")
+  data = []
+  
+  print("Reading dataset:")
 
-# Regex pattern to extract the Invoice Number and Date
-invoice_number_pattern = r'(?<=Invoice No\. : )(\S+)'
-date_pattern = r'(?<=Date : )(\d{8})'
+def read_entities(entities_file):
+    with open(entities_file, 'r') as file:
+    entities_data = json.load(file)
+return entities_data
+    pass
 
-# Find Invoice Number and Date using regex
-invoice_number_match = re.search(invoice_number_pattern, text)
-date_match = re.search(date_pattern, text)
+def split_line(row):
+    split_line=split_line
+    pass
 
-if invoice_number_match:
-    invoice_number = invoice_number_match.group(1)
-    print("Invoice Number:", invoice_number)
-else:
-    print("Invoice Number not found.")
-
-if date_match:
-    date = date_match.group(1)
-    # Assuming the date is in the format ddmmyyyy, for example, 24112023 (24th November 2023)
-    formatted_date = f"{date[0:2]}/{date[2:4]}/{date[4:]}"
-    print("Date:", formatted_date)
-else:
-    print("Date not found.")
+  for bbox_file, entities_file, img_file in tqdm(zip(bbox_files, entities_files, img_files), total=len(bbox_files)):            
+    bbox = read_bbox_and_words(bbox_file)
+    entities = read_entities(entities_file)
+    image = Image.open(img_file)
+    bbox_labeled = assign_labels(bbox, entities)
+    del bbox
+    new_bbox_l = []
+    for index, row in bbox_labeled.iterrows():
+      new_bbox_l += split_line(row)
+    new_bbox = pd.DataFrame(new_bbox_l, columns=bbox_labeled.columns, dtype=np.int16)
+    del bbox_labeled
+    #Extra label assignment to incrase the precision of the labelling(can be omitted)
+    for index, row in new_bbox.iterrows():
+      label = row['label']
+      if label != "O":
+        entity_values = entities.iloc[0, entities.columns.get_loc(label.lower())]
+        entity_set = entity_values.split()
+        if any(SequenceMatcher(a=row['line'], b=b).ratio() > 0.7 for b in entity_set):
+            label = "S-" + label
+        else:
+            label = "O"
+      new_bbox.at[index, 'label'] = label
+    width, height = image.size
+    data.append([new_bbox, width, height])
+  return data
+pretrained_model_folder_input = r'C:\Users\GB Tech\Desktop\ocrapi\unilm\layoutlm\deprecated\layoutlm' / Path(
+    'layoutlm-base-uncased')
+pretrained_model_folder =Path('/layoutlm-base-uncased/')
+label_file = Path(r'C:\Users\GB Tech\Desktop\ocrapi\unilm\layoutlm\deprecated\layoutlm\SROIE2019\test\entities',"labels.txt")
